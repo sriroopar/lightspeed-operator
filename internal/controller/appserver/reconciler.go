@@ -343,18 +343,39 @@ func reconcileDeployment(r reconciler.Reconciler, ctx context.Context, cr *olsv1
 	existingDeployment := &appsv1.Deployment{}
 	err = r.Get(ctx, client.ObjectKey{Name: utils.OLSAppServerDeploymentName, Namespace: r.GetNamespace()}, existingDeployment)
 	if err != nil && errors.IsNotFound(err) {
-		utils.UpdateDeploymentAnnotations(desiredDeployment, map[string]string{
+		// Before creating app server deployment, verify PostgreSQL is ready (if using postgres cache)
+		if cr.Spec.OLSConfig.ConversationCache.Type == utils.OLSDefaultCacheType {
+			postgresDeployment := &appsv1.Deployment{}
+			err := r.Get(ctx, client.ObjectKey{Name: utils.PostgresDeploymentName, Namespace: r.GetNamespace()}, postgresDeployment)
+			if err != nil && errors.IsNotFound(err) {
+				// PostgreSQL deployment doesn't exist yet - defer app-server creation
+				return fmt.Errorf("PostgreSQL deployment not found, deferring app-server creation until PostgreSQL is available")
+			} else if err != nil {
+				return fmt.Errorf("failed to check PostgreSQL deployment status: %w", err)
+			}
+
+			// PostgreSQL deployment exists, check if it's ready
+			desiredReplicas := int32(1)
+			if postgresDeployment.Spec.Replicas != nil {
+				desiredReplicas = *postgresDeployment.Spec.Replicas
+			}
+			if postgresDeployment.Status.ReadyReplicas != desiredReplicas {
+				return fmt.Errorf("PostgreSQL deployment is not ready yet (ready: %d, desired: %d), deferring app-server creation",
+					postgresDeployment.Status.ReadyReplicas,
+					desiredReplicas)
+			}
+			r.GetLogger().Info("PostgreSQL deployment is ready, proceeding with app-server creation")
+		}
+
+		annotations := map[string]string{
 			utils.OLSConfigHashKey:      r.GetStateCache()[utils.OLSConfigHashStateCacheKey],
 			utils.OLSAppTLSHashKey:      r.GetStateCache()[utils.OLSAppTLSHashStateCacheKey],
 			utils.LLMProviderHashKey:    r.GetStateCache()[utils.LLMProviderHashStateCacheKey],
 			utils.PostgresSecretHashKey: r.GetStateCache()[utils.PostgresSecretHashStateCacheKey],
-		})
-		utils.UpdateDeploymentTemplateAnnotations(desiredDeployment, map[string]string{
-			utils.OLSConfigHashKey:      r.GetStateCache()[utils.OLSConfigHashStateCacheKey],
-			utils.OLSAppTLSHashKey:      r.GetStateCache()[utils.OLSAppTLSHashStateCacheKey],
-			utils.LLMProviderHashKey:    r.GetStateCache()[utils.LLMProviderHashStateCacheKey],
-			utils.PostgresSecretHashKey: r.GetStateCache()[utils.PostgresSecretHashStateCacheKey],
-		})
+			utils.PostgresCAHashKey:     r.GetStateCache()[utils.PostgresCAHashStateCacheKey],
+		}
+		utils.UpdateDeploymentAnnotations(desiredDeployment, annotations)
+		utils.UpdateDeploymentTemplateAnnotations(desiredDeployment, annotations)
 		r.GetLogger().Info("creating a new deployment", "deployment", desiredDeployment.Name)
 		err = r.Create(ctx, desiredDeployment)
 		if err != nil {
