@@ -176,7 +176,7 @@ This command automatically:
 > - `make dev-setup` - Manually set up the development environment (namespace, CRDs, RBAC)
 > - `make dev-teardown` - Clean up the development environment (removes RBAC, CRDs, namespace)
 
-2. Create a secret containing the API Key for BAM or OpenAI. The key for API key is `apitoken`.
+2. Create a secret containing the API Key for OpenAI. The key for API key is `apitoken`.
 
 3. Create an `OLSConfig` custom resource
 
