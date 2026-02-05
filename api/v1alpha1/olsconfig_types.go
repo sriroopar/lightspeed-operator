@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 // OLSConfigSpec defines the desired state of OLSConfig
@@ -443,6 +444,11 @@ type ModelSpec struct {
 // ProviderSpec defines the desired state of LLM provider.
 // +kubebuilder:validation:XValidation:message="'deploymentName' must be specified for 'azure_openai' provider",rule="self.type != \"azure_openai\" || self.deploymentName != \"\""
 // +kubebuilder:validation:XValidation:message="'projectID' must be specified for 'watsonx' provider",rule="self.type != \"watsonx\" || self.projectID != \"\""
+// +kubebuilder:validation:XValidation:message="'providerType' and 'config' must be used together in llamaStackGeneric mode",rule="!has(self.providerType) || has(self.config)"
+// +kubebuilder:validation:XValidation:message="'config' requires 'providerType' to be set",rule="!has(self.config) || has(self.providerType)"
+// +kubebuilder:validation:XValidation:message="Llama Stack Generic mode (providerType set) requires type='llamaStackGeneric'",rule="!has(self.providerType) || self.type == \"llamaStackGeneric\""
+// +kubebuilder:validation:XValidation:message="Llama Stack Generic mode cannot use legacy provider-specific fields",rule="self.type != \"llamaStackGeneric\" || (!has(self.deploymentName) && !has(self.projectID))"
+// +kubebuilder:validation:XValidation:message="credentialKey must not be empty string",rule="!has(self.credentialKey) || self.credentialKey != \"\""
 type ProviderSpec struct {
 	// Provider name
 	// +kubebuilder:validation:Required
@@ -466,7 +472,7 @@ type ProviderSpec struct {
 	// Provider type
 	// +kubebuilder:validation:Required
 	// +required
-	// +kubebuilder:validation:Enum=azure_openai;bam;openai;watsonx;rhoai_vllm;rhelai_vllm;fake_provider
+	// +kubebuilder:validation:Enum=azure_openai;bam;openai;watsonx;rhoai_vllm;rhelai_vllm;fake_provider;llamaStackGeneric
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Provider Type"
 	Type string `json:"type"`
 	// Azure OpenAI deployment name
@@ -485,6 +491,25 @@ type ProviderSpec struct {
 	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="TLS Security Profile",xDescriptors={"urn:alm:descriptor:com.tectonic.ui:advanced"}
 	TLSSecurityProfile *configv1.TLSSecurityProfile `json:"tlsSecurityProfile,omitempty"`
+	// Llama Stack Generic provider type for provider configuration (e.g., "remote::openai", "inline::sentence-transformers")
+	// When set, this provider uses Llama Stack Generic mode instead of legacy mode.
+	// Must follow pattern: (inline|remote)::<provider-name>
+	// +kubebuilder:validation:Pattern=`^(inline|remote)::[a-z0-9][a-z0-9_-]*$`
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Llama Stack Provider Type"
+	ProviderType string `json:"providerType,omitempty"`
+	// Arbitrary configuration for the provider (Llama Stack Generic mode only)
+	// This map is passed directly to Llama Stack provider configuration.
+	// Credentials are automatically injected as environment variable substitutions.
+	// Example: {"url": "https://...", "custom_field": "value"}
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Llama Stack Provider Config"
+	Config *runtime.RawExtension `json:"config,omitempty"`
+	// Secret key name for provider credentials (default: "apitoken")
+	// Specifies which key in credentialsSecretRef contains the API token.
+	// The operator creates an environment variable named {PROVIDER_NAME}_API_KEY.
+	// +kubebuilder:default:="apitoken"
+	// +operator-sdk:csv:customresourcedefinitions:type=spec,displayName="Credential Key Name"
+	CredentialKey string `json:"credentialKey,omitempty"`
 }
 
 // UserDataCollectionSpec defines how we collect user data.
