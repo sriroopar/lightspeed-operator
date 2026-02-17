@@ -91,7 +91,6 @@ const (
 	ErrUpdateServiceMonitor               = "failed to update ServiceMonitor"
 	ErrUpdateMetricsReaderSecret          = "failed to update metrics reader secret"
 	ErrUpdatePrometheusRule               = "failed to update PrometheusRule"
-	ErrUpdateProxyCACM                    = "failed to update proxy CA configmap"
 	// #nosec G101
 	ErrGetPostgresSecret = "failed to get OLS Postgres secret"
 	// #nosec G101

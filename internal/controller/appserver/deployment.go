@@ -263,6 +263,7 @@ func GenerateOLSDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSConfig) (
 	// User provided CA certificates - create both volumes and volume mounts in single pass
 	_ = utils.ForEachExternalConfigMap(cr, func(name, source string) error {
 		var volumeName, mountPath string
+		var items []corev1.KeyToPath
 		switch source {
 		case "additional-ca":
 			volumeName = utils.AdditionalCAVolumeName
@@ -270,6 +271,10 @@ func GenerateOLSDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSConfig) (
 		case "proxy-ca":
 			volumeName = utils.ProxyCACertVolumeName
 			mountPath = path.Join(utils.OLSAppCertsMountRoot, utils.ProxyCACertVolumeName)
+			certKey := utils.GetProxyCACertKey(cr.Spec.OLSConfig.ProxyConfig.ProxyCACertificateRef)
+			items = []corev1.KeyToPath{
+				{Key: certKey, Path: certKey},
+			}
 		default:
 			return nil
 		}
@@ -280,6 +285,7 @@ func GenerateOLSDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSConfig) (
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{Name: name},
 					DefaultMode:          &volumeDefaultMode,
+					Items:                items,
 				},
 			},
 		})
@@ -358,13 +364,16 @@ func GenerateOLSDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSConfig) (
 	// If they don't exist, we'll get empty strings which is fine for initial creation
 	configMapResourceVersion, _ := utils.GetConfigMapResourceVersion(r, ctx, utils.OLSConfigCmName)
 
+	proxyCACMResourceVersion := utils.GetProxyCACertResourceVersion(r, ctx, cr)
+
 	deployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      utils.OLSAppServerDeploymentName,
 			Namespace: r.GetNamespace(),
 			Labels:    utils.GenerateAppServerSelectorLabels(),
 			Annotations: map[string]string{
-				utils.OLSConfigMapResourceVersionAnnotation: configMapResourceVersion,
+				utils.OLSConfigMapResourceVersionAnnotation:  configMapResourceVersion,
+				utils.ProxyCACertResourceVersionAnnotation:   proxyCACMResourceVersion,
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -521,6 +530,13 @@ func updateOLSDeployment(r reconciler.Reconciler, ctx context.Context, existingD
 		}
 	}
 
+	// Step 3: Check if Proxy CA ConfigMap ResourceVersion has changed
+	storedProxyCACMVersion := existingDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation]
+	currentProxyCACMVersion := desiredDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation]
+	if storedProxyCACMVersion != currentProxyCACMVersion {
+		changed = true
+	}
+
 	// If nothing changed, skip update
 	if !changed {
 		return nil
@@ -528,7 +544,14 @@ func updateOLSDeployment(r reconciler.Reconciler, ctx context.Context, existingD
 
 	// Apply changes - always update spec and annotations since something changed
 	existingDeployment.Spec = desiredDeployment.Spec
+
+	// Initialize annotations if nil
+	if existingDeployment.Annotations == nil {
+		existingDeployment.Annotations = make(map[string]string)
+	}
+
 	existingDeployment.Annotations[utils.OLSConfigMapResourceVersionAnnotation] = desiredDeployment.Annotations[utils.OLSConfigMapResourceVersionAnnotation]
+	existingDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation] = desiredDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation]
 
 	r.GetLogger().Info("updating OLS deployment", "name", existingDeployment.Name)
 
