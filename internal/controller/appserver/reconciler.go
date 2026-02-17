@@ -64,7 +64,7 @@ func ReconcileAppServerResources(r reconciler.Reconciler, ctx context.Context, o
 		},
 		{
 			Name: "reconcile Additional CA ConfigMap",
-			Task: reconcileOLSAdditionalCAConfigMap,
+			Task: utils.ReconcileOLSAdditionalCAConfigMap,
 		},
 		{
 			Name: "reconcile Metrics Reader Secret",
@@ -76,7 +76,7 @@ func ReconcileAppServerResources(r reconciler.Reconciler, ctx context.Context, o
 		},
 		{
 			Name: "reconcile Proxy CA ConfigMap",
-			Task: reconcileProxyCAConfigMap,
+			Task: utils.ReconcileProxyCAConfigMap,
 		},
 		{
 			Name: "reconcile ImageStreams",
@@ -186,24 +186,6 @@ func reconcileOLSConfigMap(r reconciler.Reconciler, ctx context.Context, cr *ols
 		return fmt.Errorf("%s: %w", utils.ErrUpdateAPIConfigmap, err)
 	}
 	r.GetLogger().Info("OLS configmap reconciled", "configmap", cm.Name)
-	return nil
-}
-
-func reconcileOLSAdditionalCAConfigMap(r reconciler.Reconciler, ctx context.Context, cr *olsv1alpha1.OLSConfig) error {
-	if cr.Spec.OLSConfig.AdditionalCAConfigMapRef == nil {
-		// no additional CA certs, skip
-		r.GetLogger().Info("Additional CA not configured, reconciliation skipped")
-		return nil
-	}
-
-	// Verify the configmap exists (annotation is handled by main controller)
-	cm := &corev1.ConfigMap{}
-	err := r.Get(ctx, client.ObjectKey{Name: cr.Spec.OLSConfig.AdditionalCAConfigMapRef.Name, Namespace: r.GetNamespace()}, cm)
-	if err != nil {
-		return fmt.Errorf("%s: %w", utils.ErrGetAdditionalCACM, err)
-	}
-
-	r.GetLogger().Info("additional CA configmap reconciled", "configmap", cm.Name)
 	return nil
 }
 

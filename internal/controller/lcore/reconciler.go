@@ -65,11 +65,11 @@ func ReconcileLCoreResources(r reconciler.Reconciler, ctx context.Context, olsco
 		},
 		{
 			Name: "reconcile OLS Additional CA ConfigMap",
-			Task: reconcileOLSAdditionalCAConfigMap,
+			Task: utils.ReconcileOLSAdditionalCAConfigMap,
 		},
 		{
 			Name: "reconcile Proxy CA ConfigMap",
-			Task: reconcileProxyCAConfigMap,
+			Task: utils.ReconcileProxyCAConfigMap,
 		},
 		{
 			Name: "reconcile Metrics Reader Secret",

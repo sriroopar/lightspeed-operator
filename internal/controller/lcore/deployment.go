@@ -524,6 +524,36 @@ func addUserCAVolumesAndMounts(volumes *[]corev1.Volume, volumeMounts *[]corev1.
 	})
 }
 
+// addProxyCACertVolumeAndMount adds the proxy CA ConfigMap volume and mount if a proxy CA is configured.
+func addProxyCACertVolumeAndMount(volumes *[]corev1.Volume, volumeMounts *[]corev1.VolumeMount, cr *olsv1alpha1.OLSConfig, volumeDefaultMode *int32) {
+	if cr.Spec.OLSConfig.ProxyConfig == nil {
+		return
+	}
+	proxyCACertRef := cr.Spec.OLSConfig.ProxyConfig.ProxyCACertificateRef
+	cmName := utils.GetProxyCACertConfigMapName(proxyCACertRef)
+	if cmName == "" {
+		return
+	}
+	certKey := utils.GetProxyCACertKey(proxyCACertRef)
+	*volumes = append(*volumes, corev1.Volume{
+		Name: utils.ProxyCACertVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: cmName},
+				DefaultMode:          volumeDefaultMode,
+				Items: []corev1.KeyToPath{
+					{Key: certKey, Path: certKey},
+				},
+			},
+		},
+	})
+	*volumeMounts = append(*volumeMounts, corev1.VolumeMount{
+		Name:      utils.ProxyCACertVolumeName,
+		MountPath: path.Join(utils.OLSAppCertsMountRoot, utils.ProxyCACertVolumeName),
+		ReadOnly:  true,
+	})
+}
+
 // addCustomTLSVolumesAndMounts adds user-provided custom TLS certificate volumes and mounts if specified
 func addCustomTLSVolumesAndMounts(volumes *[]corev1.Volume, volumeMounts *[]corev1.VolumeMount, cr *olsv1alpha1.OLSConfig, volumeDefaultMode *int32) {
 	if cr.Spec.OLSConfig.TLSConfig != nil && cr.Spec.OLSConfig.TLSConfig.KeyCertSecretRef.Name != "" {
@@ -714,6 +744,7 @@ func generateLCoreServerDeployment(r reconciler.Reconciler, ctx context.Context,
 	// If they don't exist, we'll get empty strings which is fine for initial creation
 	lcoreConfigMapResourceVersion, _ := utils.GetConfigMapResourceVersion(r, ctx, utils.LCoreConfigCmName)
 	llamaStackConfigMapResourceVersion, _ := utils.GetConfigMapResourceVersion(r, ctx, utils.LlamaStackConfigCmName)
+	proxyCACMResourceVersion := utils.GetProxyCACertResourceVersion(r, ctx, cr)
 
 	// Use helper functions to build common components
 	labels := buildCommonLabels()
@@ -765,6 +796,9 @@ func generateLCoreServerDeployment(r reconciler.Reconciler, ctx context.Context,
 
 	// Add user-provided CA certificates to llama-stack container
 	addUserCAVolumesAndMounts(&volumes, &llamaStackVolumeMounts, cr, &volumeDefaultMode)
+
+	// Proxy CA ConfigMap volume and mount (for proxy certificate verification)
+	addProxyCACertVolumeAndMount(&volumes, &llamaStackVolumeMounts, cr, &volumeDefaultMode)
 
 	// Build environment variables for LLM providers
 	llamaStackEnvVars, err := buildLlamaStackEnvVars(r, ctx, cr)
@@ -908,8 +942,9 @@ func generateLCoreServerDeployment(r reconciler.Reconciler, ctx context.Context,
 			Namespace: r.GetNamespace(),
 			Labels:    labels,
 			Annotations: map[string]string{
-				utils.LCoreConfigMapResourceVersionAnnotation:      lcoreConfigMapResourceVersion,
+				utils.LCoreConfigMapResourceVersionAnnotation:       lcoreConfigMapResourceVersion,
 				utils.LlamaStackConfigMapResourceVersionAnnotation: llamaStackConfigMapResourceVersion,
+				utils.ProxyCACertResourceVersionAnnotation:          proxyCACMResourceVersion,
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -1029,6 +1064,13 @@ func updateLCoreDeployment(r reconciler.Reconciler, ctx context.Context, existin
 		}
 	}
 
+	// Check if Proxy CA ConfigMap ResourceVersion has changed
+	storedProxyCACMVersion := existingDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation]
+	currentProxyCACMVersion := desiredDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation]
+	if storedProxyCACMVersion != currentProxyCACMVersion {
+		changed = true
+	}
+
 	// If nothing changed, skip update
 	if !changed {
 		return nil
@@ -1036,8 +1078,15 @@ func updateLCoreDeployment(r reconciler.Reconciler, ctx context.Context, existin
 
 	// Apply changes - always update spec and annotations since something changed
 	existingDeployment.Spec = desiredDeployment.Spec
+
+	// Initialize annotations if nil
+	if existingDeployment.Annotations == nil {
+		existingDeployment.Annotations = make(map[string]string)
+	}
+
 	existingDeployment.Annotations[utils.LCoreConfigMapResourceVersionAnnotation] = desiredDeployment.Annotations[utils.LCoreConfigMapResourceVersionAnnotation]
 	existingDeployment.Annotations[utils.LlamaStackConfigMapResourceVersionAnnotation] = desiredDeployment.Annotations[utils.LlamaStackConfigMapResourceVersionAnnotation]
+	existingDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation] = desiredDeployment.Annotations[utils.ProxyCACertResourceVersionAnnotation]
 
 	r.GetLogger().Info("updating LCore deployment", "name", existingDeployment.Name)
 
@@ -1062,6 +1111,7 @@ func generateLCoreLibraryDeployment(r reconciler.Reconciler, ctx context.Context
 	// Get ResourceVersions for tracking
 	lcoreConfigMapResourceVersion, _ := utils.GetConfigMapResourceVersion(r, ctx, utils.LCoreConfigCmName)
 	llamaStackConfigMapResourceVersion, _ := utils.GetConfigMapResourceVersion(r, ctx, utils.LlamaStackConfigCmName)
+	proxyCACMResourceVersion := utils.GetProxyCACertResourceVersion(r, ctx, cr)
 
 	// Use helper functions to build common components
 	labels := buildCommonLabels()
@@ -1104,6 +1154,9 @@ func generateLCoreLibraryDeployment(r reconciler.Reconciler, ctx context.Context
 	// Add user CA certificates
 	addUserCAVolumesAndMounts(&volumes, &volumeMounts, cr, &volumeDefaultMode)
 
+	// Proxy CA ConfigMap volume and mount (for proxy certificate verification)
+	addProxyCACertVolumeAndMount(&volumes, &volumeMounts, cr, &volumeDefaultMode)
+
 	// Add MCP header secrets for HTTP MCP servers
 	if err := addMCPHeaderSecretVolumesAndMounts(r, ctx, &volumes, &volumeMounts, cr, &volumeDefaultMode); err != nil {
 		return nil, err
@@ -1132,8 +1185,9 @@ func generateLCoreLibraryDeployment(r reconciler.Reconciler, ctx context.Context
 			Namespace: r.GetNamespace(),
 			Labels:    labels,
 			Annotations: map[string]string{
-				utils.LCoreConfigMapResourceVersionAnnotation:      lcoreConfigMapResourceVersion,
+				utils.LCoreConfigMapResourceVersionAnnotation:       lcoreConfigMapResourceVersion,
 				utils.LlamaStackConfigMapResourceVersionAnnotation: llamaStackConfigMapResourceVersion,
+				utils.ProxyCACertResourceVersionAnnotation:          proxyCACMResourceVersion,
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
