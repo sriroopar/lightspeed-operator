@@ -6,23 +6,23 @@
   },
   {
     "name": "lightspeed-console-plugin",
-    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-console-plugin-rhel9@sha256:bba38d543e730c3963b6d990f032732b4c0b747588a77f2da97157a8a929975e",
-    "revision": "002ce0ccd84700ef5542bb36de97924af0ae4063"
+    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-console-plugin-rhel9@sha256:43a5e1ec69185307f99f6e4a03c81ba236b97d98b6063c84b1898a0abf0b3638",
+    "revision": "50d30862805fb59b6d5852dfdf610fa776e90af9"
   },
   {
     "name": "lightspeed-console-plugin-pf5",
-    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-console-plugin-pf5-rhel9@sha256:7833065d560df60efb58b8bb4c5473c81bb17122d97c343b0f1f5968558532bb",
-    "revision": "e64664200930b3f814e336afcfdc88a4c4f28481"
+    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-console-plugin-pf5-rhel9@sha256:2a827c7eb7c62e59e8298c78e107a6b867440787f148b6b011f6bcb56ae19e46",
+    "revision": "e7ab712b5fb839a8dcdca0f91892cccf37355325"
   },
   {
     "name": "lightspeed-operator",
-    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-rhel9-operator@sha256:fdd8c88a03b34f382a34e95674b3c5dd316a397c489b02f8b828ce719d585bd1",
-    "revision": "238064ab7544f5b61b8504e6a91ba0b876bbbb24"
+    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-rhel9-operator@sha256:afb4f05f0c218f2f49d211d4da7ef67b5509d6ab6310e642df4cd9c895dffdb7",
+    "revision": "53bbc3f3594fe84a1bb6af92da6fd921bbdaa792"
   },
   {
     "name": "openshift-mcp-server",
-    "image": "registry.redhat.io/openshift-lightspeed/openshift-mcp-server-rhel9@sha256:30b8d4fa2c971c74fe49ba438078ec8cd0a94005e7ff41e3a9aa8ed6896a1328",
-    "revision": "bca263df15f43350d10d4f98048aeb771e4a8f0b"
+    "image": "registry.redhat.io/openshift-lightspeed/openshift-mcp-server-rhel9@sha256:7cab66f3e13b126f790aa6bc4707016cadefb2178c8ab2d2d01babd81b07c7d4",
+    "revision": "3cac98c99159b9d93e4b6e05e18077a09448b9f4"
   },
   {
     "name": "lightspeed-to-dataverse-exporter",
@@ -31,8 +31,8 @@
   },
   {
     "name": "lightspeed-ocp-rag",
-    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-ocp-rag-rhel9@sha256:6e9a2a90beecbb72fb1ed1613387a2c2c5f66afdd79185c62c791c697729462d",
-    "revision": "e3eb366ce551907bb5d66dfe1540368806114b13"
+    "image": "registry.redhat.io/openshift-lightspeed/lightspeed-ocp-rag-rhel9@sha256:e0013faef83ddcaefd00b9474a446aaa2c0cdafdde1efaaa54a57f81f8e46e97",
+    "revision": "9b284b9514fd5067e64edd237ea24f5eea8538c1"
   },
   {
     "name": "lightspeed-postgresql",
