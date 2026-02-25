@@ -4648,8 +4648,11 @@ spec:
                     - message: threshold must be between 0.0 and 1.0
                       rule: self.threshold >= 0.0 && self.threshold <= 1.0
                   toolsApprovalConfig:
-                    description: Tool execution approval configuration. Controls whether
-                      tool calls require user approval before execution.
+                    description: |-
+                      Tool execution approval configuration. Controls whether tool calls require user approval before execution.
+                      ⚠️ WARNING: This feature is not yet fully supported in the current OLS backend version.
+                      The operator will generate the configuration, but tool approval behavior may not function as expected.
+                      Please verify backend support before enabling.
                     properties:
                       approvalTimeout:
                         default: 600
