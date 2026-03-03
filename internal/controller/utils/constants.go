@@ -164,6 +164,14 @@ const (
 	PostgresCAVolume = "cm-olspostgresca"
 	// PostgresDeploymentName is the name of OLS application Postgres deployment
 	PostgresDeploymentName = "lightspeed-postgres-server"
+	// PostgresWaitInitContainerName is the name of the init container that waits for Postgres safe state
+	PostgresWaitInitContainerName = "wait-for-postgres"
+	// PostgresWaitInitContainerImageDefault is the default image for the Postgres wait init container (alpine with shell tools + wget)
+	PostgresWaitInitContainerImageDefault = "alpine:3.19"
+	// PostgresWaitRoleName is the name of the Role that allows the backend SA to get the Postgres deployment (for the wait init container)
+	PostgresWaitRoleName = "lightspeed-postgres-wait"
+	// PostgresWaitRoleBindingName is the name of the RoleBinding for the Postgres wait Role
+	PostgresWaitRoleBindingName = "lightspeed-postgres-wait"
 	// PostgresSecretKeyName is the name of the key holding Postgres server secret
 	PostgresSecretKeyName = "password"
 	// PostgresDefaultUser is the default user name for postgres

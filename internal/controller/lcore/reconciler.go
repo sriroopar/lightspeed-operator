@@ -17,6 +17,7 @@ package lcore
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/openshift/lightspeed-operator/internal/controller/reconciler"
@@ -50,6 +51,14 @@ func ReconcileLCoreResources(r reconciler.Reconciler, ctx context.Context, olsco
 		{
 			Name: "reconcile LCore SARRoleBinding",
 			Task: reconcileSARRoleBinding,
+		},
+		{
+			Name: "reconcile Postgres Wait Role",
+			Task: reconcilePostgresWaitRole,
+		},
+		{
+			Name: "reconcile Postgres Wait RoleBinding",
+			Task: reconcilePostgresWaitRoleBinding,
 		},
 		{
 			Name: "reconcile Llama Stack ConfigMap",
@@ -203,6 +212,63 @@ func reconcileSARRoleBinding(r reconciler.Reconciler, ctx context.Context, cr *o
 		return fmt.Errorf("%s: %w", utils.ErrGetSARClusterRoleBinding, err)
 	}
 	r.GetLogger().Info("ClusterRoleBinding reconciliation skipped", "ClusterRoleBinding", rb.Name)
+	return nil
+}
+
+func reconcilePostgresWaitRole(r reconciler.Reconciler, ctx context.Context, cr *olsv1alpha1.OLSConfig) error {
+	role, err := utils.GeneratePostgresWaitRole(r, cr)
+	if err != nil {
+		return fmt.Errorf("%s: %w", utils.ErrGeneratePostgresWaitRole, err)
+	}
+	foundRole := &rbacv1.Role{}
+	err = r.Get(ctx, client.ObjectKey{Name: role.Name, Namespace: role.Namespace}, foundRole)
+	if err != nil && errors.IsNotFound(err) {
+		r.GetLogger().Info("creating Postgres wait Role", "Role", role.Name)
+		err = r.Create(ctx, role)
+		if err != nil {
+			return fmt.Errorf("%s: %w", utils.ErrCreatePostgresWaitRole, err)
+		}
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("%s: %w", utils.ErrGetPostgresWaitRole, err)
+	}
+	if !reflect.DeepEqual(foundRole.Rules, role.Rules) {
+		foundRole.Rules = role.Rules
+		err = r.Update(ctx, foundRole)
+		if err != nil {
+			return fmt.Errorf("%s: %w", utils.ErrUpdatePostgresWaitRole, err)
+		}
+		r.GetLogger().Info("updated Postgres wait Role", "Role", role.Name)
+	}
+	return nil
+}
+
+func reconcilePostgresWaitRoleBinding(r reconciler.Reconciler, ctx context.Context, cr *olsv1alpha1.OLSConfig) error {
+	rb, err := utils.GeneratePostgresWaitRoleBinding(r, cr)
+	if err != nil {
+		return fmt.Errorf("%s: %w", utils.ErrGeneratePostgresWaitRoleBinding, err)
+	}
+	foundRB := &rbacv1.RoleBinding{}
+	err = r.Get(ctx, client.ObjectKey{Name: rb.Name, Namespace: rb.Namespace}, foundRB)
+	if err != nil && errors.IsNotFound(err) {
+		r.GetLogger().Info("creating Postgres wait RoleBinding", "RoleBinding", rb.Name)
+		err = r.Create(ctx, rb)
+		if err != nil {
+			return fmt.Errorf("%s: %w", utils.ErrCreatePostgresWaitRoleBinding, err)
+		}
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("%s: %w", utils.ErrGetPostgresWaitRoleBinding, err)
+	}
+	// RoleRef is immutable; only update Subjects if drifted
+	if !reflect.DeepEqual(foundRB.Subjects, rb.Subjects) {
+		foundRB.Subjects = rb.Subjects
+		err = r.Update(ctx, foundRB)
+		if err != nil {
+			return fmt.Errorf("%s: %w", utils.ErrUpdatePostgresWaitRoleBinding, err)
+		}
+		r.GetLogger().Info("updated Postgres wait RoleBinding", "RoleBinding", rb.Name)
+	}
 	return nil
 }
 

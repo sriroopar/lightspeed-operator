@@ -300,6 +300,8 @@ func GenerateOLSDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSConfig) (
 
 	// Postgres CA volume
 	volumes = append(volumes, utils.GetPostgresCAConfigVolume())
+	// Postgres wait init container: service account token volume (for Kube API calls)
+	volumes = append(volumes, utils.GeneratePostgresWaitSAVolume())
 
 	volumes = append(volumes,
 		corev1.Volume{
@@ -345,6 +347,8 @@ func GenerateOLSDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSConfig) (
 	})
 
 	initContainers := []corev1.Container{}
+	// Wait for Postgres safe state (at most one ready instance) before starting the backend
+	initContainers = append(initContainers, utils.GeneratePostgresWaitInitContainer(""))
 	if len(cr.Spec.OLSConfig.RAG) > 0 {
 		ragInitContainers := GenerateRAGInitContainers(cr)
 		initContainers = append(initContainers, ragInitContainers...)

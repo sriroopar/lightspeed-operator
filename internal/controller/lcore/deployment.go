@@ -728,6 +728,8 @@ func generateLCoreServerDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSC
 	// Add PostgreSQL CA ConfigMap volume and mount (for TLS certificate verification)
 	var postgresCAMounts []corev1.VolumeMount
 	addPostgresCAVolumesAndMounts(&volumes, &postgresCAMounts, "/etc/certs/postgres-ca")
+	// Postgres wait init container: service account token volume (for Kube API calls)
+	volumes = append(volumes, utils.GeneratePostgresWaitSAVolume())
 
 	// Add llama-cache EmptyDir for Llama Stack workspace
 	var llamaCacheMounts []corev1.VolumeMount
@@ -921,6 +923,9 @@ func generateLCoreServerDeployment(r reconciler.Reconciler, cr *olsv1alpha1.OLSC
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: utils.OLSAppServerServiceAccountName,
+					InitContainers: []corev1.Container{
+						utils.GeneratePostgresWaitInitContainer(""),
+					},
 					Containers: []corev1.Container{
 						llamaStackContainer,
 						lightspeedStackContainer,

@@ -546,7 +546,7 @@ var _ = Describe("App server assets", func() {
 				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("50m"), corev1.ResourceMemory: resource.MustParse("64Mi")},
 				Claims:   []corev1.ResourceClaim{},
 			}))
-			Expect(len(dep.Spec.Template.Spec.Volumes)).To(Equal(10))
+			Expect(len(dep.Spec.Template.Spec.Volumes)).To(Equal(11))
 			Expect(dep.Spec.Selector.MatchLabels).To(Equal(utils.GenerateAppServerSelectorLabels()))
 
 			By("generate deployment without data collector when telemetry pull secret does not exist")
@@ -574,7 +574,7 @@ var _ = Describe("App server assets", func() {
 				},
 			}))
 			Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(ConsistOf(get8RequiredVolumeMounts()))
-			Expect(len(dep.Spec.Template.Spec.Volumes)).To(Equal(8))
+			Expect(len(dep.Spec.Template.Spec.Volumes)).To(Equal(9))
 
 			By("generate deployment without data collector when telemetry pull secret does not contain telemetry token")
 			utils.CreateTelemetryPullSecret(ctx, k8sClient, false)
@@ -602,7 +602,7 @@ var _ = Describe("App server assets", func() {
 				},
 			}))
 			Expect(dep.Spec.Template.Spec.Containers[0].VolumeMounts).To(ConsistOf(get8RequiredVolumeMounts()))
-			Expect(len(dep.Spec.Template.Spec.Volumes)).To(Equal(8))
+			Expect(len(dep.Spec.Template.Spec.Volumes)).To(Equal(9))
 			utils.DeleteTelemetryPullSecret(ctx, k8sClient)
 		})
 
@@ -901,6 +901,7 @@ var _ = Describe("App server assets", func() {
 				}))
 
 			Expect(deployment.Spec.Template.Spec.InitContainers).To(ConsistOf(
+				utils.GeneratePostgresWaitInitContainer(""),
 				corev1.Container{
 					Name:    "rag-0",
 					Image:   "rag-ocp-product-docs:4.19",
@@ -1361,6 +1362,7 @@ user_data_collector_config: {}
 			))
 			Expect(dep.Spec.Template.Spec.Volumes).To(ConsistOf(
 				append(get7RequiredVolumes(),
+					utils.GeneratePostgresWaitSAVolume(),
 					corev1.Volume{
 						Name: "ols-user-data",
 						VolumeSource: corev1.VolumeSource{

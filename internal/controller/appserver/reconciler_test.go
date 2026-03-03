@@ -131,6 +131,26 @@ var _ = Describe("App server reconciliator", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		It("should create Postgres wait Role", func() {
+			By("Get the Postgres wait Role")
+			role := &rbacv1.Role{}
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: utils.PostgresWaitRoleName, Namespace: utils.OLSNamespaceDefault}, role)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(role.Rules).To(HaveLen(1))
+			Expect(role.Rules[0].Resources).To(Equal([]string{"deployments"}))
+			Expect(role.Rules[0].ResourceNames).To(Equal([]string{utils.PostgresDeploymentName}))
+		})
+
+		It("should create Postgres wait RoleBinding", func() {
+			By("Get the Postgres wait RoleBinding")
+			rb := &rbacv1.RoleBinding{}
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: utils.PostgresWaitRoleBindingName, Namespace: utils.OLSNamespaceDefault}, rb)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(rb.RoleRef.Name).To(Equal(utils.PostgresWaitRoleName))
+			Expect(rb.Subjects).To(HaveLen(1))
+			Expect(rb.Subjects[0].Name).To(Equal(utils.OLSAppServerServiceAccountName))
+		})
+
 		It("should create a service lightspeed-app-server", func() {
 			By("Get the service")
 			svc := &corev1.Service{}
