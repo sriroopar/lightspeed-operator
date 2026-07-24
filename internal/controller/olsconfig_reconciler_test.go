@@ -6,7 +6,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	consolev1 "github.com/openshift/api/console/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -256,6 +259,140 @@ var _ = Describe("OLSConfig Reconciler Helper Functions", Ordered, func() {
 	PDescribe("reconcileDeploymentsAndStatus", func() {
 		It("integration test - skipped in unit tests", func() {
 			// This function is tested via integration/E2E tests
+		})
+	})
+
+	Describe("agentic component gating", func() {
+		var emptyImageReconciler *OLSConfigReconciler
+
+		BeforeEach(func() {
+			opts := getDefaultReconcilerOptions(namespace)
+			opts.AgenticConsoleUIImage = ""
+			opts.AlertsAdapterImage = ""
+			emptyImageReconciler = &OLSConfigReconciler{
+				Client:  k8sClient,
+				Options: opts,
+				Logger:  logf.Log.WithName("test.reconciler.empty-images"),
+			}
+
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		Context("when AgenticConsoleUIImage is empty", func() {
+			It("should not create agentic console Deployment", func() {
+				_ = emptyImageReconciler.reconcileIndependentResources(ctx, cr)
+
+				dep := &appsv1.Deployment{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      utils.AgenticConsoleUIDeploymentName,
+					Namespace: namespace,
+				}, dep)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"agentic console Deployment should not exist when image is empty")
+			})
+
+			It("should not create agentic console ConsolePlugin", func() {
+				_ = emptyImageReconciler.reconcileIndependentResources(ctx, cr)
+
+				plugin := &consolev1.ConsolePlugin{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name: utils.AgenticConsoleUIPluginName,
+				}, plugin)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"agentic console ConsolePlugin should not exist when image is empty")
+			})
+
+			It("should not create agentic console ServiceAccount", func() {
+				_ = emptyImageReconciler.reconcileIndependentResources(ctx, cr)
+
+				sa := &corev1.ServiceAccount{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      utils.AgenticConsoleUIServiceAccountName,
+					Namespace: namespace,
+				}, sa)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"agentic console ServiceAccount should not exist when image is empty")
+			})
+		})
+
+		Context("when AlertsAdapterImage is empty", func() {
+			It("should not create alerts adapter Deployment", func() {
+				_ = emptyImageReconciler.reconcileIndependentResources(ctx, cr)
+
+				dep := &appsv1.Deployment{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      utils.AlertsAdapterDeploymentName,
+					Namespace: namespace,
+				}, dep)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"alerts adapter Deployment should not exist when image is empty")
+			})
+
+			It("should not create alerts adapter ServiceAccount", func() {
+				_ = emptyImageReconciler.reconcileIndependentResources(ctx, cr)
+
+				sa := &corev1.ServiceAccount{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      utils.AlertsAdapterServiceAccountName,
+					Namespace: namespace,
+				}, sa)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"alerts adapter ServiceAccount should not exist when image is empty")
+			})
+
+			It("should not create alerts adapter ClusterRole", func() {
+				_ = emptyImageReconciler.reconcileIndependentResources(ctx, cr)
+
+				role := &rbacv1.ClusterRole{}
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name: utils.AlertsAdapterAgenticRunsClusterRoleName,
+				}, role)
+				Expect(apierrors.IsNotFound(err)).To(BeTrue(),
+					"alerts adapter ClusterRole should not exist when image is empty")
+			})
+		})
+
+		Context("status conditions for disabled components", func() {
+			It("should set AgenticConsolePluginReady=False with reason Disabled", func() {
+				_, _ = emptyImageReconciler.reconcileDeploymentsAndStatus(ctx, cr)
+
+				updatedCR := &olsv1alpha1.OLSConfig{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: cr.Name}, updatedCR)
+				Expect(err).NotTo(HaveOccurred())
+
+				found := false
+				for _, c := range updatedCR.Status.Conditions {
+					if c.Type == utils.TypeAgenticConsolePluginReady {
+						found = true
+						Expect(string(c.Status)).To(Equal("False"))
+						Expect(c.Reason).To(Equal("Disabled"))
+						break
+					}
+				}
+				Expect(found).To(BeTrue(),
+					"AgenticConsolePluginReady condition should be present")
+			})
+
+			It("should set AlertsAdapterReady=False with reason Disabled", func() {
+				_, _ = emptyImageReconciler.reconcileDeploymentsAndStatus(ctx, cr)
+
+				updatedCR := &olsv1alpha1.OLSConfig{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: cr.Name}, updatedCR)
+				Expect(err).NotTo(HaveOccurred())
+
+				found := false
+				for _, c := range updatedCR.Status.Conditions {
+					if c.Type == utils.TypeAlertsAdapterReady {
+						found = true
+						Expect(string(c.Status)).To(Equal("False"))
+						Expect(c.Reason).To(Equal("Disabled"))
+						break
+					}
+				}
+				Expect(found).To(BeTrue(),
+					"AlertsAdapterReady condition should be present")
+			})
 		})
 	})
 })
